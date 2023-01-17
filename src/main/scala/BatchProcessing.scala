@@ -4,6 +4,7 @@ import io.minio.ListObjectsArgs
 
 object BatchProcessing {
   def main(args: Array[String]): Unit = {
+    println("Starting")
     val spark = SparkSession
       .builder
       // set number of cores to use in []
@@ -12,6 +13,7 @@ object BatchProcessing {
       .getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
 
+    println("Getting Minio")
     val minioClient = MinioClient.builder()
       .endpoint("http://127.0.0.1:9000")
       .credentials(sys.env("MINIO_ACCESS_KEY"), sys.env("MINIO_SECRET_KEY"))
@@ -19,8 +21,9 @@ object BatchProcessing {
     val objects = minioClient.listObjects(ListObjectsArgs.builder().bucket("log-files").build())
     val objects_iter = objects.iterator()
     while (objects_iter.hasNext()) {
-      val objectInfo = objects_iter.next()
-      println(objectInfo.toString)
+      val objectInfo = objects_iter.next().get()
+      println(objectInfo.objectName())
+      println(objectInfo.toString())
     }
 
   }
