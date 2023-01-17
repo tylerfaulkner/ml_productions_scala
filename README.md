@@ -1,4 +1,4 @@
-# ml_productions_scala
+# ML Productions Apache Spark
 Spark code for ML Productions Project 3
 
 Authors:
