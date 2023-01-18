@@ -15,15 +15,18 @@ object BatchProcessing {
 
     println("Getting Minio")
     val minioClient = MinioClient.builder()
-      .endpoint("http://127.0.0.1:9000")
-      .credentials(sys.env("MINIO_ACCESS_KEY"), sys.env("MINIO_SECRET_KEY"))
+      .endpoint(sys.env("MINIO_URL"))
+      .credentials(sys.env("SPARK_MINIO_ACCESS_KEY"), sys.env("SPARK_MINIO_SECRET_KEY"))
       .build()
+    println("Getting Minio Objects")
     val objects = minioClient.listObjects(ListObjectsArgs.builder().bucket("log-files").build())
     val objects_iter = objects.iterator()
-    while (objects_iter.hasNext()) {
+    println("Iterating over objects")
+    while (objects_iter.hasNext) {
       val objectInfo = objects_iter.next().get()
       println(objectInfo.objectName())
-      println(objectInfo.toString())
+      println(objectInfo)
+      println(objectInfo.toString)
     }
 
   }
