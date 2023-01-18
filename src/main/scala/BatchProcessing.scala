@@ -1,6 +1,10 @@
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.SparkSession
-import io.minio.MinioClient
-import io.minio.ListObjectsArgs
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
+
+import java.net.URI
 
 object BatchProcessing {
   def main(args: Array[String]): Unit = {
@@ -13,21 +17,28 @@ object BatchProcessing {
       .getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
 
-    println("Getting Minio")
-    val minioClient = MinioClient.builder()
-      .endpoint(sys.env("MINIO_URL"))
-      .credentials(sys.env("SPARK_MINIO_ACCESS_KEY"), sys.env("SPARK_MINIO_SECRET_KEY"))
-      .build()
-    println("Getting Minio Objects")
-    val objects = minioClient.listObjects(ListObjectsArgs.builder().bucket("log-files").build())
-    val objects_iter = objects.iterator()
-    println("Iterating over objects")
-    while (objects_iter.hasNext) {
-      val objectInfo = objects_iter.next().get()
-      println(objectInfo.objectName())
-      println(objectInfo)
-      println(objectInfo.toString)
-    }
+    spark.sparkContext.hadoopConfiguration.set("fs.s3a.access.key", "minioadmin")
+    spark.sparkContext.hadoopConfiguration.set("fs.s3a.secret.key", "minioadmin")
+    spark.sparkContext.hadoopConfiguration.set("fs.s3a.endpoint", "http://127.0.0.1:9000")
+    spark.sparkContext.hadoopConfiguration.set("fs.s3a.connection.ssl.enabled", "false")
+
+    println("Getting Minio Files")
+    val data = spark.read.json("s3a://log-files/*")
+    val spamEmails = data.where(col("email_id") === "spam").select(col("email_id"), col("label"))
+    println("Getting Postgres Data...")
+    val jdbcDF = spark.read
+      .format("jdbc")
+      .option("url", "jdbc:postgresql://127.0.0.1:5432/email_ingestion")
+      .option("dbtable", "emails")
+      .option("user", "ingestion_service")
+      .option("password", "puppet-soil-SWEETEN")
+      .load()
+
+    val needed_data = jdbcDF.select(col("email_id"), col("email_object"))
+
+    val leftJoin = needed_data.join(spamEmails, needed_data("email_id") === spamEmails("email_id"), "left_outer")
+
+    leftJoin.show()
 
   }
 }
