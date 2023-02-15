@@ -1,8 +1,8 @@
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.SparkSession
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
+import org.apache.spark.sql.functions.{col, from_json}
+import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 
 import java.net.URI
 
@@ -36,7 +36,19 @@ object BatchProcessing {
 
     val needed_data = jdbcDF.select(col("email_id"), col("email_object"))
 
-    val leftJoin = needed_data.join(spamEmails, Seq("email_id"), "left")
+    val struct = StructType(Seq(
+      StructField("to", StringType),
+      StructField("from", StringType),
+      StructField("subject", StringType),
+      StructField("body", StringType)
+    ))
+
+    val expanded_data = needed_data.withColumn("email_object", from_json(col("email_object"), struct))
+      .select(col("email_id"), col("email_object.*"))
+
+    expanded_data.show()
+
+    val leftJoin = expanded_data.join(spamEmails, Seq("email_id"), "left")
 
     val cleaned = leftJoin.na.fill("ham", Seq("label"))
     cleaned.show()
