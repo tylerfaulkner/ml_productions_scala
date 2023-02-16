@@ -5,6 +5,7 @@ import org.apache.spark.sql.functions.{col, from_json}
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 
 import java.net.URI
+import java.time.LocalDateTime
 
 object BatchProcessing {
   def main(args: Array[String]): Unit = {
@@ -23,7 +24,7 @@ object BatchProcessing {
     spark.sparkContext.hadoopConfiguration.set("fs.s3a.connection.ssl.enabled", "false")
 
     println("Getting Minio Files")
-    val data = spark.read.json("s3a://log-files/*.json")
+    val data = spark.read.parquet("s3a://log-files/log.parquet")
     val spamEmails = data.where(col("label") === "spam").select(col("email_id"), col("label"))
     println("Getting Postgres Data...")
     val jdbcDF = spark.read
@@ -51,9 +52,11 @@ object BatchProcessing {
     val leftJoin = expanded_data.join(spamEmails, Seq("email_id"), "left")
 
     val cleaned = leftJoin.na.fill("ham", Seq("label"))
+    val date_time = LocalDateTime.now()
+    val folder_name = String.format("data_(%d_%d_%d)_(%d_%d_%d)", date_time.getMonthValue(), date_time.getDayOfMonth(), date_time.getYear(), date_time.getHour(), date_time.getMinute(), date_time.getSecond())
     cleaned.show()
     cleaned.write
       .option("fs.s3a.committer.name", "partitioned")
-      .json("s3a://training-data/data")
+      .json(String.format("s3a://training-data/%s", folder_name))
   }
 }
